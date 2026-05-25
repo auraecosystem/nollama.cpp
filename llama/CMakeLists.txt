@@ -89,6 +89,21 @@ add_subdirectory("llama.cpp")
 include_directories("llama.cpp")
 include_directories("./llama.cpp/common")
 
+# Fix llama-ui-embed on Windows: statically link the C++ runtime to avoid failures
+# when CUDA or Vulkan SDK add older MSVC runtime DLLs (msvcp140.dll, vcruntime140.dll)
+# to PATH, which may be missing entry points needed by the binary (0xc0000139).
+# llama-ui-embed is a host build-tool run during the cmake build; static runtime
+# makes it self-contained and immune to DLL PATH ordering issues.
+if(WIN32 AND NOT CMAKE_CROSSCOMPILING AND TARGET llama-ui-embed)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        target_compile_options(llama-ui-embed PRIVATE "-fms-runtime-lib=static")
+        # Remove msvcrt.dll dependency injected by llvmApplyGnuModeAdaptations global flags
+        target_link_options(llama-ui-embed PRIVATE "-Wl,/NODEFAULTLIB:msvcrt")
+    elseif(MSVC)
+        set_target_properties(llama-ui-embed PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded")
+    endif()
+endif()
+
 # This is needed to use methods in "llama-grammar.h" and "unicode.h"
 target_include_directories(llama PUBLIC "./llama.cpp/src")
 
